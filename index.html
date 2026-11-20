@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador CPM</title>
+<style>
+/* =====================================================================
+   TEMAS (variables CSS). Claro por defecto; oscuro con data-theme="dark".
+   ===================================================================== */
+:root{
+  --bg:#f3f5fa; --panel:#ffffff; --text:#14213d; --muted:#4f5b78; --border:#c3ccdf;
+  --accent:#1d4ed8; --accent-text:#ffffff; --accent-soft:#e3ebff;
+  --crit:#c81e1e; --crit-bg:#fde8e8;
+  --ok:#136c36; --ok-bg:#dcf5e5;
+  --warn:#8a4b00; --warn-bg:#fff0c9;
+  --err:#a51111; --err-bg:#fde0e0;
+  --node-bg:#ffffff; --node-head:#e6edfb; --slack:#6f8fd8; --grid:#dfe5f1;
+  --shadow:0 1px 3px rgba(10,20,50,.15);
+}
+[data-theme="dark"]{
+  --bg:#0b1020; --panel:#151e38; --text:#f2f6ff; --muted:#b2bdd8; --border:#3a4871;
+  --accent:#74aaff; --accent-text:#0b1020; --accent-soft:#1f2c55;
+  --crit:#ff7676; --crit-bg:#4b1f27;
+  --ok:#5ee08a; --ok-bg:#16402a;
+  --warn:#ffcb5c; --warn-bg:#443409;
+  --err:#ff9494; --err-bg:#4b1f27;
+  --node-bg:#1b2750; --node-head:#27376e; --slack:#5b81d6; --grid:#2a375c;
+  --shadow:0 1px 3px rgba(0,0,0,.5);
+}
+html{font-size:16px}
+html.proj{font-size:20px}              /* modo proyección: todo escala con rem */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.4}
+h1{font-size:1.35rem;margin:0}
+h2{font-size:1.1rem;margin:.2rem 0 .6rem}
+h3{font-size:1rem;margin:.8rem 0 .4rem}
+.wrap{max-width:1250px;margin:0 auto;padding:.8rem}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:.6rem;
+  padding:.9rem;margin-bottom:.8rem;box-shadow:var(--shadow)}
+.muted{color:var(--muted);font-size:.85rem}
+
+/* ---------- Cabecera y controles ---------- */
+.topbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.6rem;align-items:end}
+label.f{display:flex;flex-direction:column;font-size:.8rem;font-weight:600;gap:.2rem;color:var(--muted)}
+input,select,button{font:inherit;color:var(--text)}
+input[type=text],input[type=number],select{
+  background:var(--bg);border:1.5px solid var(--border);border-radius:.4rem;padding:.4rem .5rem;width:100%;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+button{cursor:pointer;border:1.5px solid var(--border);background:var(--panel);border-radius:.4rem;padding:.45rem .8rem;font-weight:600}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+button.danger{color:var(--err)}
+button.small{padding:.2rem .5rem;font-size:.85rem}
+.btnrow{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+
+/* ---------- Tarjetas resumen ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin-bottom:.8rem}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:.6rem;padding:.6rem .8rem;box-shadow:var(--shadow)}
+.card .lbl{font-size:.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.card .val{font-size:1.45rem;font-weight:800}
+.card.crit .val{color:var(--crit)}
+
+/* ---------- Pestañas ---------- */
+.tabs{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.6rem}
+.tabs button{border-radius:.4rem}
+.tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.tab-panel[hidden]{display:none}
+
+/* ---------- Tablas ---------- */
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{border:1px solid var(--border);padding:.3rem .4rem;text-align:center;white-space:nowrap}
+th{background:var(--accent-soft);font-weight:700}
+td.left,th.left{text-align:left}
+tr.crit td{background:var(--crit-bg);font-weight:700}
+tr.dim td{opacity:.55}
+td input{padding:.3rem .35rem;text-align:center}
+td input.t-left{text-align:left}
+input.bad{border-color:var(--err);background:var(--err-bg)}
+input.warnf{border-color:var(--warn);background:var(--warn-bg)}
+.badge{display:inline-block;border-radius:1rem;padding:.05rem .55rem;font-size:.75rem;font-weight:800}
+.badge.crit{background:var(--crit);color:#fff}
+.badge.no{background:var(--grid);color:var(--muted)}
+
+/* ---------- Mensajes ---------- */
+.msg{border-radius:.4rem;padding:.45rem .7rem;margin:.3rem 0;font-size:.9rem;border-left:5px solid}
+.msg.err{background:var(--err-bg);color:var(--err);border-color:var(--err)}
+.msg.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.msg.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.msg.info{background:var(--accent-soft);color:var(--text);border-color:var(--accent)}
+.empty{padding:1.2rem;text-align:center;color:var(--muted)}
+
+/* ---------- SVG: red AON ---------- */
+.svgbox{overflow:auto;border:1px solid var(--border);border-radius:.5rem;background:var(--bg);padding:.3rem}
+svg text{fill:var(--text);font-family:inherit}
+.n-box{fill:var(--node-bg);stroke:var(--border);stroke-width:1.5}
+.n-head{fill:var(--node-head)}
+.n-line{stroke:var(--border);stroke-width:1}
+.n-crit .n-box{stroke:var(--crit);stroke-width:3.2}
+.n-crit .n-head{fill:var(--crit-bg)}
+.n-crit .n-id{fill:var(--crit)}
+.n-id{font-weight:800;font-size:15px}
+.n-name{font-size:10.5px;fill:var(--muted)}
+.n-num{font-size:13px;font-weight:700}
+.n-pill{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.5}
+.edge{fill:none;stroke:var(--muted);stroke-width:1.6}
+.edge.crit{stroke:var(--crit);stroke-width:3.4}
+.mk{fill:var(--muted)} .mkc{fill:var(--crit)}
+.legend{display:flex;flex-wrap:wrap;gap:1rem;font-size:.82rem;color:var(--muted);margin:.4rem 0;align-items:center}
+.legend i{display:inline-block;width:1.6rem;height:.35rem;border-radius:2px;vertical-align:middle;margin-right:.3rem}
+
+/* ---------- SVG: Gantt y gráfica de costos ---------- */
+.g-grid{stroke:var(--grid);stroke-width:1}
+.g-bar{fill:var(--accent)} .g-bar.crit{fill:var(--crit)}
+.g-slack{fill:none;stroke:var(--slack);stroke-width:2;stroke-dasharray:5 3}
+.g-tick{font-size:11px;fill:var(--muted)}
+.g-label{font-size:12px}
+.g-end{stroke:var(--crit);stroke-width:2;stroke-dasharray:3 3}
+.c-direct{stroke:var(--accent);fill:none;stroke-width:2.5}
+.c-indirect{stroke:var(--ok);fill:none;stroke-width:2.5}
+.c-total{stroke:var(--crit);fill:none;stroke-width:3}
+.c-dot{fill:var(--crit)}
+
+.two{display:grid;grid-template-columns:1fr;gap:.8rem}
+@media(min-width:980px){.two{grid-template-columns:1.1fr .9fr}}
+code.path{font-family:ui-monospace,Consolas,monospace;font-size:.85rem}
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     MOTOR CPM (funciones puras, sin DOM): validación, pase hacia adelante
+     y hacia atrás, holguras, rutas críticas y búsqueda del mejor paso de
+     aceleración. Se expone como window.CPM.
+     ===================================================================== -->
+<script id="engine">
+(function (root) {
+  'use strict';
+  const EPS = 1e-9;
+
+  /** Separa la cadena de predecesoras: "A, B;C" -> ["A","B","C"]. "-" o vacío = sin predecesoras. */
+  function splitPreds(s) {
+    return String(s == null ? '' : s).split(/[,;\s]+/)
+      .map(x => x.trim()).filter(x => x && x !== '-' && x !== '—');
+  }
+
+  /** Convierte a número; vacío/inválido -> NaN. */
+  function num(v) {
+    if (v === '' || v === null || v === undefined) return NaN;
+    if (typeof v === 'number') return v;
+    // Acepta formatos como "$2 000", "2,500" o "$ 700": se quitan $, espacios y comas de miles.
+    const s = String(v).replace(/[$\s, ]/g, '');
+    return s === '' ? NaN : Number(s);
+  }
+
+  /**
+   * Valida las filas capturadas y construye el modelo del proyecto.
+   * rows: [{id,name,preds,tn,tc,cn,cc}]  (strings o números)
+   * Devuelve {ok, errors[], warnings[], acts, order, byId, preds, succs}.
+   * Cada mensaje: {msg, row?, field?}
+   */
+  function buildModel(rows) {
+    const errors = [], warnings = [];
+    const err = (msg, row, field) => errors.push({ msg, row, field });
+    const warn = (msg, row, field) => warnings.push({ msg, row, field });
+
+    if (!rows.length) {
+      err('Agrega al menos una actividad.');
+      return { ok: false, errors, warnings };
+    }
+
+    const keyToId = new Map();   // id en minúsculas -> id canónico
+    const acts = [];
+
+    rows.forEach((r, i) => {
+      const id = String(r.id == null ? '' : r.id).trim();
+      if (!id) err(`Fila ${i + 1}: falta el ID de la actividad.`, i, 'id');
+      else if (keyToId.has(id.toLowerCase()))
+        err(`El ID "${id}" está repetido (fila ${i + 1}). Cada actividad necesita un ID único.`, i, 'id');
+      else keyToId.set(id.toLowerCase(), id);
+
+      const lab = id || `fila ${i + 1}`;
+      let tn = num(r.tn), tc = num(r.tc), cn = num(r.cn), cc = num(r.cc);
+
+      // Duración normal: obligatoria, entero >= 0
+      if (!Number.isFinite(tn) || tn < 0 || !Number.isInteger(tn)) {
+        err(`Actividad ${lab}: la duración normal (tₙ) debe ser un entero ≥ 0.`, i, 'tn'); tn = 0;
+      }
+      // Duración acelerada: vacía = igual a la normal (no acelerable)
+      if (r.tc === '' || r.tc == null || String(r.tc).trim() === '') tc = tn;
+      else if (!Number.isFinite(tc) || tc < 0 || !Number.isInteger(tc)) {
+        err(`Actividad ${lab}: la duración acelerada (t𝒸) debe ser un entero ≥ 0.`, i, 'tc'); tc = tn;
+      } else if (tc > tn) {
+        err(`Actividad ${lab}: t𝒸 (${tc}) no puede ser mayor que tₙ (${tn}).`, i, 'tc'); tc = tn;
+      }
+      // Costos: vacío = 0 (cc vacío = cn)
+      if (r.cn === '' || r.cn == null || String(r.cn).trim() === '') cn = 0;
+      else if (!Number.isFinite(cn) || cn < 0) { err(`Actividad ${lab}: el costo normal (cₙ) debe ser un número ≥ 0.`, i, 'cn'); cn = 0; }
+      if (r.cc === '' || r.cc == null || String(r.cc).trim() === '') cc = cn;
+      else if (!Number.isFinite(cc) || cc < 0) { err(`Actividad ${lab}: el costo acelerado (c𝒸) debe ser un número ≥ 0.`, i, 'cc'); cc = cn; }
+      else if (cc < cn) warn(`Actividad ${lab}: c𝒸 es menor que cₙ; el costo de aceleración será negativo.`, i, 'cc');
+      if (tc === tn && cc !== cn) warn(`Actividad ${lab}: tₙ = t𝒸 pero los costos difieren; la actividad no se puede acelerar y c𝒸 se ignora.`, i, 'cc');
+
+      const k = tn > tc ? (cc - cn) / (tn - tc) : null;   // costo de aceleración por unidad (null si no acelerable)
+      acts.push({ idx: i, id, name: String(r.name || ''), predsRaw: String(r.preds || ''), tn, tc, cn, cc, k, maxCrash: tn - tc });
+    });
+
+    // ---- Referencias de predecesoras ----
+    const preds = {}, succs = {};
+    acts.forEach(a => { preds[a.id] = []; succs[a.id] = []; });
+    acts.forEach(a => {
+      if (!a.id) return;
+      const seen = new Set();
+      splitPreds(a.predsRaw).forEach(p => {
+        const canon = keyToId.get(p.toLowerCase());
+        if (!canon) err(`Actividad ${a.id}: la predecesora "${p}" no existe.`, a.idx, 'preds');
+        else if (canon === a.id) err(`Actividad ${a.id}: una actividad no puede ser predecesora de sí misma.`, a.idx, 'preds');
+        else if (seen.has(canon)) warn(`Actividad ${a.id}: la predecesora "${canon}" está repetida; se cuenta una sola vez.`, a.idx, 'preds');
+        else { seen.add(canon); preds[a.id].push(canon); succs[canon].push(a.id); }
+      });
+    });
+    if (errors.length) return { ok: false, errors, warnings };
+
+    // ---- Orden topológico (Kahn) y detección de ciclos ----
+    const indeg = {}; acts.forEach(a => indeg[a.id] = preds[a.id].length);
+    const queue = acts.filter(a => indeg[a.id] === 0).map(a => a.id);
+    const order = [];
+    while (queue.length) {
+      const u = queue.shift(); order.push(u);
+      succs[u].forEach(v => { if (--indeg[v] === 0) queue.push(v); });
+    }
+    if (order.length < acts.length) {
+      // Todo nodo restante conserva al menos una predecesora restante: caminando hacia atrás se cierra un ciclo.
+      const rest = new Set(acts.filter(a => !order.includes(a.id)).map(a => a.id));
+      let cur = [...rest][0]; const trail = []; const pos = new Map();
+      while (!pos.has(cur)) { pos.set(cur, trail.length); trail.push(cur); cur = preds[cur].find(p => rest.has(p)); }
+      const cyc = trail.slice(pos.get(cur)).reverse();
+      cyc.push(cyc[0]);
+      err(`Ciclo detectado: ${cyc.join(' → ')}. Las dependencias no pueden formar un lazo.`,
+          acts.find(a => a.id === cyc[0]).idx, 'preds');
+      cyc.slice(0, -1).forEach(id => errors.push({ msg: null, row: acts.find(a => a.id === id).idx, field: 'preds' }));
+      return { ok: false, errors: errors.filter(e => e.msg).concat(errors.filter(e => !e.msg)), warnings };
+    }
+
+    const byId = new Map(acts.map(a => [a.id, a]));
+    return { ok: true, errors, warnings, acts, order, byId, preds, succs };
+  }
+
+  /** Mapa id -> duración actual (tₙ menos la reducción aplicada en `crash`). */
+  function durMap(model, crash) {
+    const d = {};
+    model.acts.forEach(a => d[a.id] = a.tn - ((crash && crash[a.id]) || 0));
+    return d;
+  }
+
+  /**
+   * Pase hacia adelante y hacia atrás.
+   * ES = max(EF predecesoras) ; EF = ES + d ; LF = min(LS sucesoras) (o T) ; LS = LF - d
+   * HT = LS - ES ; HL = min(ES sucesoras) - EF (o T - EF si no tiene sucesoras)
+   */
+  function compute(model, dur) {
+    const res = {};
+    model.order.forEach(id => {
+      const ES = model.preds[id].reduce((m, p) => Math.max(m, res[p].EF), 0);
+      res[id] = { d: dur[id], ES, EF: ES + dur[id] };
+    });
+    const T = model.order.reduce((m, id) => Math.max(m, res[id].EF), 0);
+    for (let i = model.order.length - 1; i >= 0; i--) {
+      const id = model.order[i], s = model.succs[id], r = res[id];
+      r.LF = s.length ? Math.min(...s.map(x => res[x].LS)) : T;
+      r.LS = r.LF - r.d;
+      r.HT = r.LS - r.ES;
+      r.HL = (s.length ? Math.min(...s.map(x => res[x].ES)) : T) - r.EF;
+      r.critical = Math.abs(r.HT) < EPS;
+    }
+    return { res, T, critical: model.order.filter(id => res[id].critical) };
+  }
+
+  /** Enumera las rutas críticas (cadenas con HT = 0 y enlaces "ajustados" EF(u) = ES(v)). */
+  function criticalPaths(model, calc, cap) {
+    cap = cap || 100;
+    const r = calc.res, out = []; let truncated = false;
+    const walk = (id, path) => {
+      if (out.length >= cap) { truncated = true; return; }
+      path.push(id);
+      const nx = model.succs[id].filter(s => r[s].critical && Math.abs(r[s].ES - r[id].EF) < EPS);
+      if (!nx.length) { if (Math.abs(r[id].EF - calc.T) < EPS) out.push(path.slice()); }
+      else nx.forEach(s => walk(s, path));
+      path.pop();
+    };
+    model.order.filter(id => r[id].critical && model.preds[id].length === 0).forEach(s => walk(s, []));
+    return { paths: out, truncated };
+  }
+
+  /** Costo directo con la aceleración aplicada (lineal entre normal y crash). */
+  function directCost(model, crash) {
+    return model.acts.reduce((s, a) => s + a.cn + (a.k !== null ? a.k * ((crash && crash[a.id]) || 0) : 0), 0);
+  }
+
+  /**
+   * Mejor paso de aceleración de 1 unidad: el conjunto de actividades críticas de menor costo
+   * total cuya reducción baja realmente la duración del proyecto en 1 (considera rutas críticas
+   * paralelas: puede requerir acelerar varias actividades a la vez). Devuelve {ids, cost} o null.
+   */
+  function bestCrashStep(model, crash) {
+    const dur = durMap(model, crash), base = compute(model, dur);
+    const cands = model.acts.filter(a => base.res[a.id].critical && a.k !== null && ((crash[a.id] || 0) < a.maxCrash));
+    if (!cands.length) return null;
+    const works = ids => {
+      const d = Object.assign({}, dur); ids.forEach(id => d[id] -= 1);
+      return compute(model, d).T <= base.T - 1 + EPS;
+    };
+    if (cands.length <= 12) {                 // búsqueda exhaustiva sobre subconjuntos
+      let best = null; const n = cands.length;
+      for (let m = 1; m < (1 << n); m++) {
+        let cost = 0; const ids = [];
+        for (let i = 0; i < n; i++) if (m & (1 << i)) { cost += cands[i].k; ids.push(cands[i].id); }
+        if (best) {
+          if (cost > best.cost + EPS) continue;
+          if (Math.abs(cost - best.cost) <= EPS && ids.length >= best.ids.length) continue;
+        }
+        if (works(ids)) best = { ids, cost };
+      }
+      return best;
+    }
+    const sorted = cands.slice().sort((a, b) => a.k - b.k);   // respaldo voraz para muchas críticas
+    const ids = []; let cost = 0;
+    for (const a of sorted) { ids.push(a.id); cost += a.k; if (works(ids)) return { ids, cost }; }
+    return null;
+  }
+
+  const api = { EPS, num, splitPreds, buildModel, durMap, compute, criticalPaths, directCost, bestCrashStep };
+  root.CPM = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<!-- =====================================================================
+     INTERFAZ
+     ===================================================================== -->
+<div class="wrap">
+
+  <div class="topbar">
+    <h1>⏱️ Simulador del Método de la Ruta Crítica (CPM)</h1>
+    <div class="btnrow">
+      <button id="btnProj" type="button" aria-pressed="false" title="Aumenta el tamaño de letra para proyectar">🔎 Modo proyección</button>
+      <button id="btnTheme" type="button" title="Cambiar entre tema claro y oscuro">🌙 Tema oscuro</button>
+    </div>
+  </div>
+
+  <!-- Configuración -->
+  <section class="panel" aria-label="Configuración del proyecto">
+    <div class="controls">
+      <label class="f">Título del proyecto
+        <input type="text" id="inTitle" placeholder="Ej. Construcción de una casa">
+      </label>
+      <label class="f">Unidad de tiempo
+        <input type="text" id="inUnit" list="units" placeholder="días, semanas…">
+        <datalist id="units"><option value="días"><option value="semanas"><option value="meses"><option value="horas"></datalist>
+      </label>
+      <label class="f">Costo indirecto por unidad de tiempo ($)
+        <input type="text" inputmode="decimal" id="inIndirect" placeholder="0">
+      </label>
+      <label class="f">Plazo solicitado (opcional)
+        <input type="text" inputmode="numeric" id="inDeadline" placeholder="Ej. 28">
+      </label>
+    </div>
+    <div class="btnrow" style="margin-top:.7rem">
+      <strong style="font-size:.9rem">Ejemplos:</strong>
+      <button type="button" data-ex="miguel">🏗️ Obra de Miguel (12 act., plazo 28)</button>
+      <button type="button" data-ex="basic">📘 CPM básico</button>
+      <button type="button" data-ex="crash">⚡ Con aceleración (crashing)</button>
+      <button type="button" data-ex="empty">🗒️ Proyecto vacío</button>
+    </div>
+  </section>
+
+  <!-- Resumen -->
+  <div class="cards" id="summary" aria-live="polite"></div>
+
+  <!-- Pestañas -->
+  <div class="tabs" role="tablist" id="tabs">
+    <button role="tab" type="button" data-tab="datos" aria-selected="true">1 · Datos</button>
+    <button role="tab" type="button" data-tab="calculo" aria-selected="false">2 · Cálculo CPM</button>
+    <button role="tab" type="button" data-tab="red" aria-selected="false">3 · Diagrama de red</button>
+    <button role="tab" type="button" data-tab="gantt" aria-selected="false">4 · Gantt</button>
+    <button role="tab" type="button" data-tab="crash" aria-selected="false">5 · Aceleración (crashing)</button>
+  </div>
+
+  <!-- 1 · DATOS -->
+  <section class="tab-panel panel" id="tab-datos">
+    <h2>Actividades del proyecto</h2>
+    <p class="muted">Predecesoras separadas por coma (ej. <code>A, B</code>); deja vacío si no tiene. Las duraciones son números enteros.
+      Si dejas t𝒸 / c𝒸 vacíos, la actividad no se acelera. El costo de aceleración es
+      <b>k = (c𝒸 − cₙ) / (tₙ − t𝒸)</b>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>ID</th><th class="left">Nombre</th><th>Predecesoras</th>
+          <th title="Duración normal">tₙ</th><th title="Duración acelerada (crash)">t𝒸</th>
+          <th title="Costo normal">cₙ ($)</th><th title="Costo acelerado (crash)">c𝒸 ($)</th>
+          <th title="Costo de aceleración por unidad de tiempo">k ($/ud.)</th><th></th>
+        </tr></thead>
+        <tbody id="dataBody"></tbody>
+      </table>
+    </div>
+    <div class="btnrow" style="margin-top:.6rem">
+      <button type="button" class="primary" id="btnAdd">➕ Agregar actividad</button>
+    </div>
+    <details style="margin-top:.8rem">
+      <summary style="cursor:pointer;font-weight:700">📋 Pegar una tabla completa (importar)</summary>
+      <p class="muted">Una actividad por línea, columnas separadas por <b>tabulador</b> (copiar y pegar desde Excel o una tabla web) o por <b>;</b> :
+        <code>ID ; Nombre ; Predecesoras ; tₙ ; t𝒸 ; cₙ ; c𝒸</code>. Se aceptan montos como «$2 000». Reemplaza las actividades actuales.</p>
+      <textarea id="pasteBox" rows="6" style="width:100%;background:var(--bg);color:var(--text);border:1.5px solid var(--border);border-radius:.4rem;padding:.5rem;font-family:ui-monospace,Consolas,monospace"
+        placeholder="A;Diseño;;5;3;2000;2500&#10;B;Compra;A;4;4;3000;3000"></textarea>
+      <div class="btnrow" style="margin-top:.4rem"><button type="button" class="primary" id="btnImport">Importar actividades</button></div>
+    </details>
+    <div id="messages" style="margin-top:.7rem" aria-live="polite"></div>
+  </section>
+
+  <!-- 2 · CÁLCULO -->
+  <section class="tab-panel panel" id="tab-calculo" hidden>
+    <h2>Resultados del pase hacia adelante y hacia atrás</h2>
+    <div id="calcBox"></div>
+  </section>
+
+  <!-- 3 · RED -->
+  <section class="tab-panel panel" id="tab-red" hidden>
+    <h2>Diagrama de red (actividad en el nodo, AON)</h2>
+    <div class="btnrow">
+      <button type="button" class="small" data-zoom="-1">➖ Alejar</button>
+      <button type="button" class="small" data-zoom="0">↺ Ajustar</button>
+      <button type="button" class="small" data-zoom="1">➕ Acercar</button>
+    </div>
+    <div class="legend" id="netLegend"></div>
+    <div class="svgbox" id="netBox"></div>
+  </section>
+
+  <!-- 4 · GANTT -->
+  <section class="tab-panel panel" id="tab-gantt" hidden>
+    <h2>Diagrama de Gantt (inicio más temprano)</h2>
+    <div class="legend">
+      <span><i style="background:var(--crit)"></i>Actividad crítica</span>
+      <span><i style="background:var(--accent)"></i>Actividad no crítica</span>
+      <span><i style="border:2px dashed var(--slack);background:transparent;height:.4rem"></i>Holgura total (hasta LF)</span>
+    </div>
+    <div class="svgbox" id="ganttBox"></div>
+  </section>
+
+  <!-- 5 · CRASHING -->
+  <section class="tab-panel panel" id="tab-crash" hidden>
+    <h2>Simulación de aceleración (crashing)</h2>
+    <div id="crashBox"></div>
+  </section>
+
+  <p class="muted" style="text-align:center">Simulador CPM · archivo único, funciona sin conexión.</p>
+</div>
+
+<script id="ui">
+(function () {
+  'use strict';
+
+  /* ===================== Utilidades ===================== */
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtNum = n => Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+  const fmtMoney = n => '$' + (Math.round(n * 100) / 100).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+  const EPS = CPM.EPS;
+
+  /* ===================== Ejemplos ===================== */
+  const EXAMPLES = {
+    miguel: {
+      title: 'Obra de Miguel (Tijuana): plazo máximo 28 días', unit: 'días', indirect: 0, deadline: 28,
+      rows: [
+        ['A', 'A', '',    5, 3, 2000, 2500],
+        ['B', 'B', '',    4, 4, 3000, 3000],
+        ['C', 'C', '',    8, 7, 4000, 5000],
+        ['D', 'D', 'A',   3, 2, 1200, 1500],
+        ['E', 'E', 'A',   7, 5, 2000, 3000],
+        ['F', 'F', 'C',   5, 5, 3000, 3000],
+        ['G', 'G', 'C',   4, 3, 3000, 3700],
+        ['H', 'H', 'B,D', 3, 3, 8000, 8000],
+        ['I', 'I', 'F,H', 9, 6,  700, 1600],
+        ['J', 'J', 'F,H', 11, 7, 1500, 2000],
+        ['K', 'K', 'E,I', 8, 6,  600, 1500],
+        ['L', 'L', 'G,J', 10, 9, 1000, 1050]
+      ]
+    },
+    basic: {
+      title: 'Construcción de una casa (CPM básico)', unit: 'días', indirect: 0,
+      rows: [
+        ['A', 'Diseño y permisos',     '',     3, 3, 0, 0],
+        ['B', 'Compra de materiales',  'A',    2, 2, 0, 0],
+        ['C', 'Cimientos',             'A',    4, 4, 0, 0],
+        ['D', 'Estructura',            'B,C',  5, 5, 0, 0],
+        ['E', 'Instalaciones',         'B',    3, 3, 0, 0],
+        ['F', 'Acabados',              'D,E',  4, 4, 0, 0],
+        ['G', 'Entrega',               'F',    1, 1, 0, 0]
+      ]
+    },
+    crash: {
+      title: 'Construcción de una bodega (con aceleración)', unit: 'días', indirect: 250,
+      rows: [
+        ['A', 'Diseño',                  '',      4, 2,  400,  600],
+        ['B', 'Cimentación',             'A',     6, 4,  900, 1300],
+        ['C', 'Estructura',              'B',     8, 5, 2000, 2900],
+        ['D', 'Instalación eléctrica',   'B',     5, 3,  700, 1000],
+        ['E', 'Plomería',                'B',     4, 3,  500,  650],
+        ['F', 'Acabados',                'C,D,E', 6, 4, 1200, 1700],
+        ['G', 'Inspección y entrega',    'F',     2, 1,  200,  300]
+      ]
+    }
+  };
+
+  /* ===================== Estado ===================== */
+  let uidSeq = 0;
+  const state = {
+    title: '', unit: 'días', indirect: 0, deadline: 0,   // deadline 0 = sin plazo
+    rows: [],        // filas capturadas (strings)
+    crash: {},       // id -> unidades reducidas
+    history: [],     // [{label, T, direct}]
+    msg: null,       // mensaje del panel de crashing {type,text}
+    model: null, calc: null, base: null,
+    zoom: 1
+  };
+
+  const newRow = (id, name, preds, tn, tc, cn, cc) =>
+    ({ uid: ++uidSeq, id, name, preds, tn: String(tn), tc: String(tc), cn: String(cn), cc: String(cc) });
+
+  function loadExample(key) {
+    if (key === 'empty') {
+      state.title = ''; state.unit = 'días'; state.indirect = 0; state.deadline = 0; state.rows = [];
+    } else {
+      const ex = EXAMPLES[key];
+      state.title = ex.title; state.unit = ex.unit; state.indirect = ex.indirect; state.deadline = ex.deadline || 0;
+      state.rows = ex.rows.map(r => newRow(...r));
+    }
+    $('#inTitle').value = state.title; $('#inUnit').value = state.unit; $('#inIndirect').value = state.indirect || '';
+    $('#inDeadline').value = state.deadline || '';
+    resetSimulation(false);
+    renderDataTable(); recalc(); applyRowErrors();
+  }
+
+  /* ===================== Cálculo ===================== */
+  /** Reconstruye modelo y cálculos con el estado actual (sin tocar el DOM). */
+  function compute() {
+    state.model = CPM.buildModel(state.rows);
+    if (state.model.ok) {
+      state.calc = CPM.compute(state.model, CPM.durMap(state.model, state.crash));
+      state.base = CPM.compute(state.model, CPM.durMap(state.model, {}));
+      if (!state.history.length) pushHistory('Estado normal (sin acelerar)');
+    } else { state.calc = state.base = null; }
+  }
+  function recalc() { compute(); renderAll(); }
+
+  function pushHistory(label) {
+    state.history.push({ label, T: state.calc.T, direct: CPM.directCost(state.model, state.crash) });
+  }
+
+  function resetSimulation(render) {
+    state.crash = {}; state.history = []; state.msg = null;
+    if (render !== false) recalc();
+  }
+
+  /* ===================== Aceleración ===================== */
+  /** Aplica 1 unidad de reducción a cada id; registra el paso. Devuelve {before, after}. */
+  function crashStep(ids, label) {
+    const before = state.calc.T;
+    ids.forEach(id => state.crash[id] = (state.crash[id] || 0) + 1);
+    compute();
+    pushHistory(label);
+    return { before, after: state.calc.T };
+  }
+
+  function manualCrash(id) {
+    const a = state.model.byId.get(id);
+    const { before, after } = crashStep([id], `Acelerar ${id} (−1)  ·  k = ${fmtMoney(a.k)}`);
+    if (after < before) state.msg = { type: 'ok', text: `Se aceleró ${id} en 1 ${state.unit}: la duración bajó de ${before} a ${after}.` };
+    else state.msg = { type: 'warn', text: `Se aceleró ${id} en 1 ${state.unit}, pero la duración del proyecto se mantiene en ${after}: hay otra ruta crítica en paralelo. Para reducir el proyecto hay que acelerar también esa ruta (se gastó ${fmtMoney(a.k)} sin ahorrar tiempo).` };
+    renderAll();
+  }
+
+  function autoCrash(mode) {   // mode: 'one' | 'limit' | 'optimum'
+    if (mode === 'optimum' && !(state.indirect > 0)) {
+      state.msg = { type: 'warn', text: 'Para buscar el óptimo económico captura un costo indirecto por unidad de tiempo mayor que 0.' };
+      return renderAll();
+    }
+    if (mode === 'deadline' && !(state.deadline > 0)) {
+      state.msg = { type: 'warn', text: 'Captura primero el plazo solicitado en la parte superior.' };
+      return renderAll();
+    }
+    const costBefore = CPM.directCost(state.model, state.crash);
+    let steps = 0, stopReason = '';
+    for (let guard = 0; guard < 2000; guard++) {
+      if (mode === 'deadline' && state.calc.T <= state.deadline) { stopReason = ''; break; }
+      const best = CPM.bestCrashStep(state.model, state.crash);
+      if (!best) { stopReason = 'ya no es posible reducir más el proyecto (todas las rutas críticas están en su límite de aceleración).'; break; }
+      if (mode === 'optimum' && !(best.cost < state.indirect - EPS)) {
+        stopReason = `el siguiente paso cuesta ${fmtMoney(best.cost)} por ${state.unit} y el ahorro indirecto es ${fmtMoney(state.indirect)}; acelerar más ya no conviene.`; break;
+      }
+      crashStep(best.ids, `Acelerar ${best.ids.join(' + ')} (−1)  ·  costo marginal ${fmtMoney(best.cost)}`);
+      steps++;
+      if (mode === 'one') break;
+    }
+    if (mode === 'deadline') {
+      const extra = CPM.directCost(state.model, state.crash) - costBefore, T = state.calc.T;
+      state.msg = T <= state.deadline
+        ? { type: 'ok', text: `Sí se logra el plazo de ${state.deadline} ${state.unit}: la obra queda en ${T}. Costo extra por acelerar en este paso: ${fmtMoney(extra)} (costo directo total ${fmtMoney(CPM.directCost(state.model, state.crash))}).` }
+        : { type: 'err', text: `No es posible cumplir ${state.deadline} ${state.unit}: aun acelerando todo lo permitido, la duración mínima es ${T} ${state.unit}.` };
+      return renderAll();
+    }
+    if (steps === 0) state.msg = { type: 'warn', text: 'No se aplicó ninguna reducción: ' + stopReason };
+    else state.msg = { type: 'ok', text: `Se aplicaron ${steps} paso(s). Duración actual: ${state.calc.T} ${state.unit}.` + (stopReason ? ' Se detuvo porque ' + stopReason : '') };
+    renderAll();
+  }
+
+  /* ===================== Render: Datos ===================== */
+  function kText(r) {
+    const blank = v => String(v).trim() === '';
+    const tn = CPM.num(r.tn), tc = blank(r.tc) ? tn : CPM.num(r.tc);
+    const cn = blank(r.cn) ? 0 : CPM.num(r.cn), cc = blank(r.cc) ? cn : CPM.num(r.cc);
+    if (![tn, tc, cn, cc].every(Number.isFinite) || blank(r.tn) || tn <= tc) return '—';
+    return fmtMoney((cc - cn) / (tn - tc));
+  }
+
+  function renderDataTable() {
+    $('#dataBody').innerHTML = state.rows.map((r, i) => `
+      <tr data-uid="${r.uid}">
+        <td>${i + 1}</td>
+        <td style="min-width:70px"><input type="text" data-f="id" value="${esc(r.id)}" aria-label="ID fila ${i + 1}"></td>
+        <td style="min-width:190px"><input class="t-left" type="text" data-f="name" value="${esc(r.name)}" aria-label="Nombre fila ${i + 1}"></td>
+        <td style="min-width:110px"><input type="text" data-f="preds" value="${esc(r.preds)}" placeholder="—" aria-label="Predecesoras fila ${i + 1}"></td>
+        <td style="min-width:70px"><input type="text" inputmode="numeric" data-f="tn" value="${esc(r.tn)}" aria-label="Duración normal fila ${i + 1}"></td>
+        <td style="min-width:70px"><input type="text" inputmode="numeric" data-f="tc" value="${esc(r.tc)}" aria-label="Duración acelerada fila ${i + 1}"></td>
+        <td style="min-width:90px"><input type="text" inputmode="decimal" data-f="cn" value="${esc(r.cn)}" aria-label="Costo normal fila ${i + 1}"></td>
+        <td style="min-width:90px"><input type="text" inputmode="decimal" data-f="cc" value="${esc(r.cc)}" aria-label="Costo acelerado fila ${i + 1}"></td>
+        <td class="k-cell" style="min-width:80px"><b>${kText(r)}</b></td>
+        <td><button type="button" class="small danger" data-del="${r.uid}" title="Eliminar actividad" aria-label="Eliminar fila ${i + 1}">🗑️</button></td>
+      </tr>`).join('') ||
+      '<tr><td colspan="10" class="empty">Sin actividades. Agrega una o carga un ejemplo.</td></tr>';
+  }
+
+  /** Marca en rojo/ámbar los campos con error/advertencia. */
+  function applyRowErrors() {
+    $$('#dataBody input').forEach(i => i.classList.remove('bad', 'warnf'));
+    const rows = $$('#dataBody tr[data-uid]');
+    const mark = (list, cls) => list.forEach(e => {
+      if (e.row == null || !e.field || !rows[e.row]) return;
+      const inp = $(`input[data-f="${e.field}"]`, rows[e.row]); if (inp) inp.classList.add(cls);
+    });
+    if (!state.model) return;
+    mark(state.model.warnings, 'warnf'); mark(state.model.errors, 'bad');
+  }
+
+  function renderMessages() {
+    const m = state.model; let h = '';
+    m.errors.filter(e => e.msg).forEach(e => h += `<div class="msg err">⛔ ${esc(e.msg)}</div>`);
+    m.warnings.forEach(e => h += `<div class="msg warn">⚠️ ${esc(e.msg)}</div>`);
+    if (m.ok) h = `<div class="msg ok">✔ Modelo válido: ${m.acts.length} actividades, sin ciclos ni referencias inexistentes.</div>` + h;
+    $('#messages').innerHTML = h;
+  }
+
+  /* ===================== Render: Resumen ===================== */
+  function renderSummary() {
+    const box = $('#summary');
+    if (!state.model.ok) { box.innerHTML = '<div class="card"><div class="lbl">Estado</div><div class="val" style="font-size:1rem;color:var(--err)">Corrige los datos</div></div>'; return; }
+    const T = state.calc.T, T0 = state.base.T, u = esc(state.unit);
+    const direct = CPM.directCost(state.model, state.crash), ind = T * (state.indirect || 0);
+    const np = CPM.criticalPaths(state.model, state.calc, 100);
+    box.innerHTML = `
+      <div class="card crit"><div class="lbl">Duración del proyecto</div><div class="val">${T} <span style="font-size:.9rem">${u}</span></div></div>
+      <div class="card"><div class="lbl">Duración normal</div><div class="val">${T0} <span style="font-size:.9rem">${u}</span></div></div>
+      <div class="card"><div class="lbl">Costo directo</div><div class="val">${fmtMoney(direct)}</div></div>
+      <div class="card"><div class="lbl">Costo indirecto</div><div class="val">${fmtMoney(ind)}</div></div>
+      <div class="card"><div class="lbl">Costo total</div><div class="val">${fmtMoney(direct + ind)}</div></div>
+      <div class="card"><div class="lbl">Rutas críticas</div><div class="val">${np.paths.length}${np.truncated ? '+' : ''}</div></div>
+      ${state.deadline > 0 ? `<div class="card ${T <= state.deadline ? '' : 'crit'}"><div class="lbl">Plazo de ${state.deadline} ${u}</div>
+        <div class="val" style="font-size:1.1rem;color:var(--${T <= state.deadline ? 'ok' : 'crit'})">${T <= state.deadline ? '✔ Sí se cumple' : '✖ Excede ' + (T - state.deadline) + ' ' + u}</div></div>` : ''}`;
+  }
+
+  /* ===================== Render: Cálculo ===================== */
+  function renderCalc() {
+    const box = $('#calcBox');
+    if (!state.model.ok) { box.innerHTML = '<div class="empty">Corrige los errores de la pestaña Datos para ver el cálculo.</div>'; return; }
+    const { model, calc } = state, r = calc.res;
+    const cp = CPM.criticalPaths(model, calc, 20);
+    const crashed = Object.keys(state.crash).some(k => state.crash[k] > 0);
+    const rows = model.order.map(id => {
+      const a = model.byId.get(id), x = r[id];
+      return `<tr class="${x.critical ? 'crit' : ''}">
+        <td><b>${esc(id)}</b></td><td class="left">${esc(a.name)}</td>
+        <td>${x.d}${state.crash[id] ? ` <small>(−${state.crash[id]})</small>` : ''}</td>
+        <td>${x.ES}</td><td>${x.EF}</td><td>${x.LS}</td><td>${x.LF}</td><td>${x.HT}</td><td>${x.HL}</td>
+        <td>${x.critical ? '<span class="badge crit">CRÍTICA</span>' : '<span class="badge no">no</span>'}</td></tr>`;
+    }).join('');
+    box.innerHTML = `
+      <div class="msg info">Duración total del proyecto: <b>${calc.T} ${esc(state.unit)}</b>${crashed ? ' (con aceleración aplicada)' : ''}.
+        Ruta(s) crítica(s):
+        ${cp.paths.map(p => `<div><code class="path">${p.map(esc).join(' → ')}</code></div>`).join('')}
+        ${cp.truncated ? '<div class="muted">(se muestran las primeras 20)</div>' : ''}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th class="left">Actividad</th><th>Dur.</th>
+          <th title="Inicio más temprano">ES</th><th title="Fin más temprano">EF</th>
+          <th title="Inicio más tardío">LS</th><th title="Fin más tardío">LF</th>
+          <th title="Holgura total = LS − ES">HT</th><th title="Holgura libre = min ES sucesoras − EF">HL</th><th>¿Crítica?</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="muted"><b>ES</b> = máx. EF de las predecesoras · <b>EF</b> = ES + duración · <b>LF</b> = mín. LS de las sucesoras (o la duración total) ·
+        <b>LS</b> = LF − duración · <b>HT</b> = LS − ES · <b>HL</b> = mín. ES de las sucesoras − EF.</p>`;
+  }
+
+  /* ===================== Render: Red AON ===================== */
+  function renderNetwork() {
+    const box = $('#netBox'), leg = $('#netLegend');
+    if (!state.model.ok) { box.innerHTML = '<div class="empty">Corrige los errores para ver el diagrama.</div>'; leg.innerHTML = ''; return; }
+    const { model, calc } = state, r = calc.res;
+    const W = 140, H = 78, GX = 70, GY = 28, PAD = 20, SW = 66, SH = 44;
+
+    // Nivel = longitud (en actividades) del camino más largo desde el inicio
+    const lvl = {}; model.order.forEach(id => { const p = model.preds[id]; lvl[id] = p.length ? Math.max(...p.map(x => lvl[x])) + 1 : 1; });
+    const maxL = Math.max(...model.order.map(id => lvl[id]));
+    const cols = []; for (let l = 0; l <= maxL + 1; l++) cols.push([]);
+    cols[0] = ['__start']; cols[maxL + 1] = ['__end'];
+    model.order.forEach(id => cols[lvl[id]].push(id));
+    const predsOf = id => id === '__end' ? model.order.filter(x => !model.succs[x].length) : (model.preds[id].length ? model.preds[id] : ['__start']);
+    // Ordenamiento por baricentro para reducir cruces
+    const idxIn = id => { for (const c of cols) { const i = c.indexOf(id); if (i >= 0) return i; } return 0; };
+    for (let l = 2; l <= maxL; l++) {
+      const key = id => { const p = predsOf(id); return p.reduce((s, x) => s + idxIn(x), 0) / p.length; };
+      cols[l].sort((a, b) => key(a) - key(b));
+    }
+
+    const maxCount = Math.max(...cols.map(c => c.length));
+    const totalH = PAD * 2 + maxCount * H + (maxCount - 1) * GY;
+    const totalW = PAD * 2 + (maxL) * (W + GX) + 2 * (SW + GX) - GX;
+    const geo = {};
+    let x = PAD;
+    cols.forEach((c, l) => {
+      const isSE = (l === 0 || l === maxL + 1);
+      const w = isSE ? SW : W, h = isSE ? SH : H;
+      const colH = c.length * H + (c.length - 1) * GY;
+      let y0 = (totalH - colH) / 2;
+      c.forEach((id, i) => { geo[id] = isSE ? { x, y: (totalH - SH) / 2, w, h } : { x, y: y0 + i * (H + GY), w, h }; });
+      x += w + GX;
+    });
+
+    // Aristas
+    const edges = [];
+    model.order.forEach(id => {
+      if (!model.preds[id].length) edges.push({ u: '__start', v: id, crit: r[id].critical && Math.abs(r[id].ES) < EPS });
+      model.preds[id].forEach(p => edges.push({ u: p, v: id, crit: r[p].critical && r[id].critical && Math.abs(r[id].ES - r[p].EF) < EPS }));
+      if (!model.succs[id].length) edges.push({ u: id, v: '__end', crit: r[id].critical && Math.abs(r[id].EF - calc.T) < EPS });
+    });
+    const path = e => {
+      const a = geo[e.u], b = geo[e.v];
+      const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x - 2, y2 = b.y + b.h / 2, dx = Math.max(20, (x2 - x1) / 2);
+      return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+    };
+    let svg = `<svg id="netSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalW} ${totalH}" width="${Math.round(totalW * state.zoom)}" height="${Math.round(totalH * state.zoom)}" role="img" aria-label="Diagrama de red del proyecto">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path class="mkc" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>`;
+    edges.filter(e => !e.crit).forEach(e => svg += `<path class="edge" d="${path(e)}" marker-end="url(#arr)"/>`);
+    edges.filter(e => e.crit).forEach(e => svg += `<path class="edge crit" d="${path(e)}" marker-end="url(#arrC)"/>`);
+
+    // Nodos
+    ['__start', '__end'].forEach(id => {
+      const g = geo[id];
+      svg += `<g><rect class="n-pill" x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="${g.h / 2}"/>
+        <text x="${g.x + g.w / 2}" y="${g.y + g.h / 2 + (id === '__end' ? -3 : 5)}" text-anchor="middle" class="n-num">${id === '__start' ? 'INICIO' : 'FIN'}</text>
+        ${id === '__end' ? `<text x="${g.x + g.w / 2}" y="${g.y + g.h / 2 + 13}" text-anchor="middle" class="n-name">T = ${calc.T}</text>` : ''}</g>`;
+    });
+    model.order.forEach(id => {
+      const a = model.byId.get(id), q = r[id], g = geo[id];
+      const cw = g.w / 3, hy = 22, by = g.y + g.h - hy;
+      const crashed = state.crash[id] > 0;
+      svg += `<g class="${q.critical ? 'n-crit' : ''}"><title>${esc(id)} · ${esc(a.name)}\nDuración ${q.d} | ES ${q.ES} EF ${q.EF} | LS ${q.LS} LF ${q.LF}\nHT ${q.HT} · HL ${q.HL}${q.critical ? '\nACTIVIDAD CRÍTICA' : ''}</title>
+        <rect class="n-box" x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="6"/>
+        <rect class="n-head" x="${g.x + 1}" y="${g.y + 1}" width="${g.w - 2}" height="${hy - 1}" rx="5"/>
+        <rect class="n-head" x="${g.x + 1}" y="${by}" width="${g.w - 2}" height="${hy - 1}" rx="5"/>
+        <line class="n-line" x1="${g.x}" y1="${g.y + hy}" x2="${g.x + g.w}" y2="${g.y + hy}"/>
+        <line class="n-line" x1="${g.x}" y1="${by}" x2="${g.x + g.w}" y2="${by}"/>
+        <line class="n-line" x1="${g.x + cw}" y1="${g.y}" x2="${g.x + cw}" y2="${g.y + hy}"/>
+        <line class="n-line" x1="${g.x + 2 * cw}" y1="${g.y}" x2="${g.x + 2 * cw}" y2="${g.y + hy}"/>
+        <line class="n-line" x1="${g.x + cw}" y1="${by}" x2="${g.x + cw}" y2="${g.y + g.h}"/>
+        <line class="n-line" x1="${g.x + 2 * cw}" y1="${by}" x2="${g.x + 2 * cw}" y2="${g.y + g.h}"/>
+        <text class="n-num" text-anchor="middle" x="${g.x + cw / 2}" y="${g.y + 16}">${q.ES}</text>
+        <text class="n-num" text-anchor="middle" x="${g.x + 1.5 * cw}" y="${g.y + 16}">${q.d}</text>
+        <text class="n-num" text-anchor="middle" x="${g.x + 2.5 * cw}" y="${g.y + 16}">${q.EF}</text>
+        <text class="n-num" text-anchor="middle" x="${g.x + cw / 2}" y="${by + 16}">${q.LS}</text>
+        <text class="n-num" text-anchor="middle" x="${g.x + 1.5 * cw}" y="${by + 16}">${q.HT}</text>
+        <text class="n-num" text-anchor="middle" x="${g.x + 2.5 * cw}" y="${by + 16}">${q.LF}</text>
+        <text class="n-id" text-anchor="middle" x="${g.x + g.w / 2}" y="${g.y + hy + 17}">${esc(trunc(id, 8))}${crashed ? ' ⚡' : ''}</text>
+        <text class="n-name" text-anchor="middle" x="${g.x + g.w / 2}" y="${g.y + hy + 29}">${esc(trunc(a.name, 22))}</text></g>`;
+    });
+    svg += '</svg>';
+    box.innerHTML = svg;
+    leg.innerHTML = `
+      <span><i style="background:var(--crit)"></i>Ruta crítica (HT = 0)</span>
+      <span><i style="background:var(--muted)"></i>Dependencia normal</span>
+      <span>Nodo: <b>ES · Dur · EF</b> arriba · <b>ID</b> al centro · <b>LS · HT · LF</b> abajo</span>
+      <span>⚡ = actividad acelerada</span>`;
+  }
+
+  /* ===================== Render: Gantt ===================== */
+  function niceStep(T) { for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000]) if (T / s <= 20) return s; return 1000; }
+
+  function renderGantt() {
+    const box = $('#ganttBox');
+    if (!state.model.ok) { box.innerHTML = '<div class="empty">Corrige los errores para ver el Gantt.</div>'; return; }
+    const { model, calc } = state, r = calc.res, T = Math.max(calc.T, 1);
+    const ids = model.order.slice().sort((a, b) => r[a].ES - r[b].ES || model.order.indexOf(a) - model.order.indexOf(b));
+    const LW = 200, CW = 760, RH = 30, TOP = 34, scale = CW / T, step = niceStep(T);
+    const width = LW + CW + 30, height = TOP + ids.length * RH + 20;
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="width:100%;min-width:640px;height:auto" role="img" aria-label="Diagrama de Gantt">`;
+    for (let t = 0; t <= T + EPS; t += step) {
+      const gx = LW + t * scale;
+      s += `<line class="g-grid" x1="${gx}" y1="${TOP - 6}" x2="${gx}" y2="${height - 14}"/><text class="g-tick" x="${gx}" y="${TOP - 12}" text-anchor="middle">${t}</text>`;
+    }
+    ids.forEach((id, i) => {
+      const a = model.byId.get(id), q = r[id], y = TOP + i * RH, bx = LW + q.ES * scale, bw = Math.max(q.d * scale, 3);
+      s += `<g><title>${esc(id)} · ${esc(a.name)} | ES ${q.ES}, EF ${q.EF}, LF ${q.LF}, HT ${q.HT}</title>
+        <text class="g-label" x="${LW - 8}" y="${y + 19}" text-anchor="end" ${q.critical ? 'style="font-weight:800;fill:var(--crit)"' : ''}>${esc(id)} · ${esc(trunc(a.name, 22))}${state.crash[id] ? ' ⚡' : ''}</text>
+        ${q.HT > 0 ? `<rect class="g-slack" x="${LW + q.EF * scale}" y="${y + 9}" width="${q.HT * scale}" height="12" rx="3"/>` : ''}
+        <rect class="g-bar ${q.critical ? 'crit' : ''}" x="${bx}" y="${y + 4}" width="${bw}" height="22" rx="4"/>
+        ${bw > 22 ? `<text x="${bx + bw / 2}" y="${y + 20}" text-anchor="middle" style="fill:#fff;font-size:12px;font-weight:700">${q.d}</text>` : ''}</g>`;
+    });
+    s += `<line class="g-end" x1="${LW + calc.T * scale}" y1="${TOP - 6}" x2="${LW + calc.T * scale}" y2="${height - 14}"/>
+      <text class="g-tick" x="${LW + CW / 2}" y="${height - 2}" text-anchor="middle">Tiempo (${esc(state.unit)})</text></svg>`;
+    box.innerHTML = s;
+  }
+
+  /* ===================== Render: Crashing ===================== */
+  function renderCrash() {
+    const box = $('#crashBox');
+    if (!state.model.ok) { box.innerHTML = '<div class="empty">Corrige los errores de la pestaña Datos para simular.</div>'; return; }
+    const { model, calc } = state, r = calc.res, u = esc(state.unit);
+    const best = CPM.bestCrashStep(model, state.crash);
+    const cp = CPM.criticalPaths(model, calc, 10);
+
+    const rows = model.order.map(id => {
+      const a = model.byId.get(id), q = r[id], done = state.crash[id] || 0;
+      let btn, why = '';
+      if (a.k === null) why = 'no acelerable';
+      else if (done >= a.maxCrash) why = 'en su límite';
+      else if (!q.critical) why = 'no es crítica';
+      btn = (why ? `<button type="button" class="small" disabled title="${why}">Acelerar −1</button> <span class="muted">${why}</span>`
+                 : `<button type="button" class="small primary" data-crash="${esc(id)}">Acelerar −1</button>`);
+      return `<tr class="${q.critical ? 'crit' : 'dim'}"><td><b>${esc(id)}</b></td><td class="left">${esc(a.name)}</td>
+        <td>${q.d}</td><td>${done} / ${a.maxCrash}</td><td>${a.k === null ? '—' : fmtMoney(a.k)}</td>
+        <td>${q.critical ? '<span class="badge crit">CRÍTICA</span>' : '<span class="badge no">no</span>'}</td><td class="left">${btn}</td></tr>`;
+    }).join('');
+
+    const histRows = state.history.map((h, i) => {
+      const ind = h.T * (state.indirect || 0);
+      return `<tr><td>${i}</td><td class="left">${esc(h.label)}</td><td>${h.T}</td><td>${fmtMoney(h.direct)}</td><td>${fmtMoney(ind)}</td><td><b>${fmtMoney(h.direct + ind)}</b></td></tr>`;
+    }).join('');
+
+    const nextTxt = best
+      ? `Siguiente paso de menor costo: acelerar <b>${best.ids.map(esc).join(' + ')}</b> en 1 ${u} → costo marginal <b>${fmtMoney(best.cost)}</b>` +
+        (state.indirect > 0 ? ` (ahorro indirecto ${fmtMoney(state.indirect)} por ${u}: ${best.cost < state.indirect - EPS ? '<b>conviene</b>' : '<b>ya no conviene</b>'})` : '')
+      : 'No hay más pasos posibles: las rutas críticas ya están en su límite de aceleración.';
+
+    box.innerHTML = `
+      <div class="msg info">Duración actual: <b>${calc.T} ${u}</b> · Ruta(s) crítica(s):
+        ${cp.paths.map(p => `<code class="path">${p.map(esc).join(' → ')}</code>`).join(' &nbsp;|&nbsp; ')}</div>
+      ${state.msg ? `<div class="msg ${state.msg.type}">${esc(state.msg.text)}</div>` : ''}
+      <div class="msg ${best ? 'ok' : 'warn'}" style="font-weight:600">${nextTxt}</div>
+      <div class="btnrow" style="margin:.6rem 0">
+        <button type="button" class="primary" data-auto="one" ${best ? '' : 'disabled'}>⚡ Reducir 1 paso (menor costo)</button>
+        ${state.deadline > 0 ? `<button type="button" class="primary" data-auto="deadline" ${calc.T > state.deadline && best ? '' : 'disabled'}>🎯 Acelerar hasta cumplir el plazo (${state.deadline})</button>` : ''}
+        <button type="button" data-auto="limit" ${best ? '' : 'disabled'}>⏩ Acelerar hasta el límite</button>
+        <button type="button" data-auto="optimum" ${best ? '' : 'disabled'}>🎯 Hasta el óptimo económico</button>
+        <button type="button" class="danger" data-reset="1">↺ Reiniciar simulación</button>
+      </div>
+      <h3>Actividades y costo marginal</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th class="left">Actividad</th><th>Dur. actual</th><th>Reducida / máx.</th><th>k ($ por ${u})</th><th>¿Crítica?</th><th class="left">Acción</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="muted">Solo se pueden acelerar actividades críticas. Si hay varias rutas críticas en paralelo, reducir una sola actividad no acorta el proyecto:
+        el botón automático elige el <b>conjunto de menor costo</b> que sí lo reduce.</p>
+      <div class="two">
+        <div><h3>Historial de la simulación</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Paso</th><th class="left">Acción</th><th>Duración</th><th>C. directo</th><th>C. indirecto</th><th>C. total</th></tr></thead>
+            <tbody>${histRows}</tbody></table></div></div>
+        <div><h3>Curva costo–tiempo</h3><div class="svgbox" id="costChart"></div></div>
+      </div>`;
+    renderCostChart();
+  }
+
+  function renderCostChart() {
+    const box = $('#costChart'); if (!box) return;
+    const H = state.history, ind = state.indirect || 0;
+    if (H.length < 2) { box.innerHTML = '<div class="empty">Acelera el proyecto para ver cómo cambian los costos.</div>'; return; }
+    const pts = H.map(h => ({ T: h.T, d: h.direct, i: h.T * ind, t: h.direct + h.T * ind }));
+    const w = 520, h = 280, L = 62, R = 14, Tp = 14, B = 40;
+    const xs = pts.map(p => p.T), xmin = Math.min(...xs), xmax = Math.max(...xs);
+    const ys = pts.flatMap(p => [p.d, p.i, p.t]), ymin = Math.min(0, ...ys), ymax = Math.max(...ys) * 1.05 || 1;
+    const X = t => L + (xmax === xmin ? (w - L - R) / 2 : (xmax - t) / (xmax - xmin) * (w - L - R));  // eje invertido: se lee de la duración mayor a la menor
+    const Y = v => h - B - (v - ymin) / (ymax - ymin) * (h - B - Tp);
+    const line = (key, cls) => `<polyline class="${cls}" points="${pts.map(p => X(p.T) + ',' + Y(p[key])).join(' ')}"/>`;
+    const minP = pts.reduce((m, p) => p.t < m.t ? p : m, pts[0]);
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" style="width:100%;height:auto" role="img" aria-label="Curva costo-tiempo">`;
+    for (let g = 0; g <= 4; g++) {
+      const v = ymin + (ymax - ymin) * g / 4;
+      s += `<line class="g-grid" x1="${L}" x2="${w - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="g-tick" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${fmtMoney(Math.round(v))}</text>`;
+    }
+    for (let t = xmin; t <= xmax; t++) s += `<text class="g-tick" x="${X(t)}" y="${h - B + 16}" text-anchor="middle">${t}</text>`;
+    s += line('d', 'c-direct') + line('i', 'c-indirect') + line('t', 'c-total');
+    s += `<circle class="c-dot" cx="${X(minP.T)}" cy="${Y(minP.t)}" r="6"><title>Costo total mínimo: ${fmtMoney(minP.t)} con ${minP.T} ${esc(state.unit)}</title></circle>
+      <text class="g-tick" x="${(L + w - R) / 2}" y="${h - 4}" text-anchor="middle">Duración del proyecto (${esc(state.unit)})</text>
+      <g font-size="11"><text x="${L + 6}" y="${Tp + 6}" style="fill:var(--accent)">● Directo</text><text x="${L + 78}" y="${Tp + 6}" style="fill:var(--ok)">● Indirecto</text><text x="${L + 160}" y="${Tp + 6}" style="fill:var(--crit)">● Total (punto = mínimo)</text></g></svg>`;
+    box.innerHTML = s;
+  }
+
+  /* ===================== Render global ===================== */
+  function renderAll() {
+    renderMessages(); renderSummary(); renderCalc(); renderNetwork(); renderGantt(); renderCrash();
+  }
+
+  /* ===================== Eventos ===================== */
+  // Edición de la tabla de datos (delegado; no se reconstruye la tabla para conservar el foco)
+  $('#dataBody').addEventListener('input', e => {
+    const inp = e.target.closest('input[data-f]'); if (!inp) return;
+    const tr = inp.closest('tr'), row = state.rows.find(r => r.uid === Number(tr.dataset.uid));
+    row[inp.dataset.f] = inp.value;
+    $('.k-cell b', tr).textContent = kText(row);
+    resetSimulation(false);      // cambiar datos invalida la simulación
+    recalc(); applyRowErrors();
+  });
+  $('#dataBody').addEventListener('click', e => {
+    const del = e.target.closest('[data-del]'); if (!del) return;
+    state.rows = state.rows.filter(r => r.uid !== Number(del.dataset.del));
+    resetSimulation(false); renderDataTable(); recalc(); applyRowErrors();
+  });
+  $('#btnAdd').addEventListener('click', () => {
+    const used = new Set(state.rows.map(r => r.id.toLowerCase()));
+    let id = ''; for (let i = 0; i < 26 && !id; i++) { const c = String.fromCharCode(65 + i); if (!used.has(c.toLowerCase())) id = c; }
+    for (let n = 1; !id; n++) if (!used.has(('a' + n)))  id = 'A' + n;
+    const last = state.rows.length ? state.rows[state.rows.length - 1].id : '';
+    state.rows.push(newRow(id, '', last, 1, 1, 0, 0));
+    resetSimulation(false); renderDataTable(); recalc(); applyRowErrors();
+    const trs = $$('#dataBody tr'); const inp = $('input[data-f="name"]', trs[trs.length - 1]); if (inp) inp.focus();
+  });
+
+  // Cabecera
+  $('#inTitle').addEventListener('input', e => { state.title = e.target.value; });
+  $('#inUnit').addEventListener('input', e => { state.unit = e.target.value.trim() || 'unidades'; renderAll(); });
+  $('#inIndirect').addEventListener('input', e => { state.indirect = Math.max(0, CPM.num(e.target.value) || 0); state.msg = null; renderAll(); });
+  $('#inDeadline').addEventListener('input', e => { state.deadline = Math.max(0, CPM.num(e.target.value) || 0); state.msg = null; renderAll(); });
+
+  // Importar tabla pegada: ID ; Nombre ; Predecesoras ; tn ; tc ; cn ; cc  (tabulador o ;)
+  $('#btnImport').addEventListener('click', () => {
+    const lines = $('#pasteBox').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const parsed = [];
+    lines.forEach(l => {
+      let c = l.split(l.includes('\t') ? '\t' : ';').map(x => x.trim());
+      if (c.length >= 8) c = c.slice(1);                       // columna extra de número de actividad
+      while (c.length < 7) c.push('');
+      if (!Number.isFinite(CPM.num(c[3]))) return;             // encabezado u otra línea no numérica
+      parsed.push(c);
+    });
+    // Tablas tipo "N.º | Nombre (A, B, C…) | Predecesor…": si la 1.ª columna es solo un número y las
+    // predecesoras citan los nombres, el ID real es la columna de nombre.
+    const names = new Set(parsed.map(c => c[1].toLowerCase()));
+    const predTokens = parsed.flatMap(c => CPM.splitPreds(c[2]));
+    if (parsed.length && parsed.every(c => /^\d+$/.test(c[0])) && predTokens.length &&
+        predTokens.every(t => names.has(t.toLowerCase()))) parsed.forEach(c => c[0] = c[1]);
+    const rows = parsed.map(c => newRow(c[0], c[1], c[2], c[3], c[4], c[5], c[6]));
+    if (!rows.length) { $('#messages').innerHTML = '<div class="msg err">⛔ No se reconocieron actividades. Revisa que cada línea tenga 7 columnas separadas por tabulador o “;”.</div>'; return; }
+    state.rows = rows; resetSimulation(false); renderDataTable(); recalc(); applyRowErrors();
+  });
+  $$('[data-ex]').forEach(b => b.addEventListener('click', () => loadExample(b.dataset.ex)));
+
+  // Pestañas
+  function showTab(name) {
+    $$('#tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    $$('.tab-panel').forEach(p => p.hidden = p.id !== 'tab-' + name);
+  }
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+
+  // Zoom del diagrama de red
+  document.addEventListener('click', e => {
+    const z = e.target.closest('[data-zoom]');
+    if (z) { const d = Number(z.dataset.zoom); state.zoom = d === 0 ? 1 : Math.min(2.5, Math.max(.4, state.zoom + d * .2)); renderNetwork(); }
+    const c = e.target.closest('[data-crash]'); if (c) manualCrash(c.dataset.crash);
+    const a = e.target.closest('[data-auto]'); if (a) autoCrash(a.dataset.auto);
+    if (e.target.closest('[data-reset]')) resetSimulation(true);
+  });
+
+  // Tema y modo proyección (con respaldo si localStorage no está disponible)
+  function setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    $('#btnTheme').textContent = t === 'dark' ? '☀️ Tema claro' : '🌙 Tema oscuro';
+    try { localStorage.setItem('cpm-theme', t); } catch (_) {}
+  }
+  $('#btnTheme').addEventListener('click', () => setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+  $('#btnProj').addEventListener('click', e => {
+    const on = document.documentElement.classList.toggle('proj');
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+  });
+
+  /* ===================== Inicio ===================== */
+  (function init() {
+    let t = 'light';
+    try { t = localStorage.getItem('cpm-theme') || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (_) {}
+    setTheme(t);
+    loadExample('miguel');
+  })();
+})();
+</script>
+</body>
+</html>
